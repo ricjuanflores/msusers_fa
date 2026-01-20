@@ -1,0 +1,111 @@
+name: Deployment prod
+
+on:
+  release:
+    types: [published]
+
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE: ricjuanflores/aq_ms_users_fa
+
+jobs:
+  testing:
+    name: Run tests
+    runs-on: ubuntu-latest
+
+    env:
+      APP_SECRET_KEY: my-secret-key
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install application
+        run: pip install -e .
+
+      - name: Run testing
+        run: coverage run -m pytest
+
+      - name: Show coverage report
+        run: coverage report
+
+  image:
+    needs: testing
+    name: Push Docker image to Docker Hub
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v1.10.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v3.5.0
+        with:
+          images: ${{ env.DOCKER_IMAGE }}
+
+      - name: Version
+        run: echo ${{ steps.meta.outputs.version }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2.7.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: image
+    name: Deploy image in eks
+    runs-on: ubuntu-latest
+
+    env:
+      DEV_CLUSTER_NAME: ${{ secrets.PROD_CLUSTER_NAME }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.PROD_AWS_REGION }}
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+
+      - name: Update deployment file
+        run: TAG=$(echo ${{ needs.image.outputs.version }}) && sed -i 's|<IMAGE>|${{ env.DOCKER_IMAGE }}:'${TAG}'|' $GITHUB_WORKSPACE/k8s/prod_manifest.yml
+
+      - name: Update deployment celery file
+        run: TAG=$(echo ${{ needs.image.outputs.version }}) && sed -i 's|<IMAGE>|${{ env.DOCKER_IMAGE }}:'${TAG}'|' $GITHUB_WORKSPACE/k8s/prod_manifest_celery.yml
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Save AWS kubeconfig
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.DEV_CLUSTER_NAME }}
+
+      - name: Deploy to EKS
+        run: kubectl apply -f $GITHUB_WORKSPACE/k8s/prod_manifest.yml
+
+      - name: Deploy Celery to EKS
+        run: kubectl apply -f $GITHUB_WORKSPACE/k8s/prod_manifest_celery.yml
+

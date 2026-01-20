@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  ms_users_fa:
+    container_name: ms_users_fa
+    build: .
+    ports:
+      - 8080:5000
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    depends_on:
+      - ms_users_fa_db
+      - ms_users_fa_redis
+    networks:
+      - usersNetworkFa
+
+  ms_users_fa_celery:
+    container_name: ms_users_fa_celery
+    build: .
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    environment:
+      - APP_ENV=celery
+    depends_on:
+      - ms_users_fa_db
+      - ms_users_fa_redis
+    networks:
+      - usersNetworkFa
+
+  ms_users_fa_db:
+    container_name: ms_users_fa_db
+    image: postgres
+    ports:
+      - 5433:5432
+    volumes:
+      - usersDbVolumeFa:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ms_users
+      POSTGRES_USER: ms_users
+      POSTGRES_PASSWORD: secret
+      PGDATA: /var/lib/postgresql/data
+    networks:
+      - usersNetworkFa
+
+  ms_users_fa_redis:
+    container_name: ms_users_fa_redis
+    image: redis:6-alpine
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - 6380:6379
+    volumes:
+      - ./docker/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - usersNetworkFa
+
+volumes:
+  usersDbVolumeFa:
+    driver: local
+
+networks:
+  usersNetworkFa:
+    driver: "bridge"
+

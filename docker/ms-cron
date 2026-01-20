@@ -1,0 +1,4 @@
+# MS Users FastAPI Cron Jobs
+# Run cache update every 5 minutes
+*/5 * * * * cd /app && python -c "from ms_fa.tasks import update_cache_task; update_cache_task()" >> /var/log/cron.log 2>&1
+

@@ -1,0 +1,143 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-users-fa-celery
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ms-users-fa-celery
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ms-users-fa-celery
+    spec:
+      containers:
+      - name: ms-users-fa-celery
+        image: <IMAGE>
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 5000
+        env:
+        - name: APP_ENV
+          value: "celery"
+        - name: APP_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: APP_NAME
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: APP_VERSION
+        - name: APP_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ms-secrets
+              key: APP_SECRET_KEY
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: APP_TIMEZONE
+        - name: DB_CONNECTION
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: DB_CONNECTION
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: DB_PORT
+        - name: DB_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: DB_DATABASE
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ms-secrets
+              key: DB_PASSWORD
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: REDIS_PORT
+        - name: REDIS_DB
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: REDIS_DB
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ms-secrets
+              key: S3_ACCESS_KEY
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ms-secrets
+              key: S3_SECRET_KEY
+        - name: S3_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: S3_REGION
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: S3_BUCKET
+        - name: NOTIFICATION_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ms-users-fa-configmap
+              key: NOTIFICATION_API_URL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 150Mi
+          limits:
+            cpu: 400m
+            memory: 800Mi
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ms-users-fa-celery
+  namespace: staging
+spec:
+  type: NodePort
+  ports:
+  - name: http
+    port: 80
+    targetPort: 5000
+    protocol: TCP
+  selector:
+    app: ms-users-fa-celery
+
